@@ -1,0 +1,181 @@
+import { PeerTransport } from './transport.js';
+const $ = id => document.getElementById(id);
+let socket, room, local, busy = false, generation = 0, claimTimer;
+const members = new Map(), streams = new Map(), videos = new Map();
+const isDesktop = !!window.__TAURI__;
+if (!isDesktop) $('server').value = new URL('/signal', location.href).href.replace(/^http/, 'ws');
+if (!isDesktop && location.protocol === 'https:') $('connection-settings').hidden = true;
+const status = message => { $('status').textContent = message; };
+const send = message => {
+  if (socket?.readyState !== WebSocket.OPEN) throw Error('Servidor desconectado');
+  socket.send(JSON.stringify(message));
+};
+function showVideo(stream, id, streamId) {
+  if (!videos.has(streamId)) {
+    const card = document.createElement('div'); card.className = 'video-card';
+    const label = document.createElement('p'); label.textContent = `${members.get(id) || 'Amigo'}${id === room?.id ? ' · sua tela' : ''}`;
+    const video = document.createElement('video');
+    video.autoplay = video.playsInline = video.controls = true; video.muted = id === room?.id;
+    video.setAttribute('aria-label', `Transmissão de ${members.get(id) || 'Amigo'}`);
+    card.append(label, video); $('videos').append(card); videos.set(streamId, { card, video });
+  }
+  const video = videos.get(streamId).video; video.srcObject = stream;
+  video.play().catch(() => status('Use reproduzir no vídeo para assistir e ouvir.'));
+  render();
+}
+function removeVideo(streamId) {
+  const item = videos.get(streamId);
+  if (item) { item.video.srcObject = null; item.card.remove(); videos.delete(streamId); }
+  transport.remove(null, streamId);
+}
+const transport = new PeerTransport((to, data, streamId) => send({ type: 'signal', to, data, streamId }), showVideo,
+  (id, state) => status(`${members.get(id) || 'Amigo'}: ${({connected:'conectado',connecting:'conectando',disconnected:'conexão interrompida',failed:'conexão falhou — entre novamente; outra rede pode exigir TURN'})[state] || state}`));
+function render() {
+  $('room').hidden = !room; $('room-code').textContent = room?.code || '';
+  $('count').textContent = `${members.size} / 10`;
+  $('stream-count').textContent = `${streams.size} / 3 transmitindo`;
+  $('empty').hidden = videos.size > 0;
+  $('create').disabled = $('join').disabled = !!room || busy;
+  $('name').disabled = $('server').disabled = $('access-key').disabled = !!room || busy;
+  $('share').disabled = !room || streams.size >= 3 || streams.has(room?.id) || !!local || busy;
+  $('stop').disabled = !local;
+  $('audio').disabled = $('bitrate').disabled = !!local || busy;
+  $('peers').replaceChildren(...[...members].map(([id, name]) => {
+    const li = document.createElement('li');
+    li.textContent = `${name} · ${streams.has(id) ? 'transmitindo' : 'assistindo'}${id === room?.id ? ' · você' : ''}`;
+    return li;
+  }));
+}
+function stop(notify = true) {
+  generation++; clearTimeout(claimTimer); busy = false;
+  if (local) for (const track of local.getTracks()) { track.onended = null; track.stop(); }
+  local = null;
+  const streamId = streams.get(room?.id);
+  if (streamId) {
+    removeVideo(streamId);
+    if (notify && socket?.readyState === WebSocket.OPEN) send({ type: 'stream-stopped', streamId });
+  }
+  render();
+}
+function reset() {
+  stop(false); transport.close();
+  for (const streamId of videos.keys()) removeVideo(streamId);
+  room = null; members.clear(); streams.clear(); render();
+  $('stats').textContent = 'Qualidade e áudio dependem do dispositivo e da conexão.';
+}
+async function connect() {
+  if (socket?.readyState === WebSocket.OPEN && socket.url === new URL($('server').value).href) return;
+  if (socket) { const old = socket; socket = null; old.close(); }
+  const url = new URL($('server').value);
+  if (!['ws:', 'wss:'].includes(url.protocol) || url.username || url.password) throw Error('Use ws:// ou wss:// sem credenciais.');
+  if (!['localhost', '127.0.0.1', '[::1]'].includes(url.hostname) && url.protocol !== 'wss:') throw Error('Para acessar pela internet use wss://.');
+  const current = new WebSocket(url); socket = current;
+  let queue = Promise.resolve();
+  current.onmessage = ({ data }) => {
+    queue = queue.then(async () => { if (socket === current) await handle(JSON.parse(data)); })
+      .catch(e => { status(e.message); });
+  };
+  current.onclose = () => { if (socket === current) { socket = null; reset(); status('Servidor desconectado. Crie ou entre novamente.'); } };
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { current.close(); reject(Error('Tempo de conexão esgotado')); }, 5000);
+    current.onopen = () => { clearTimeout(timer); resolve(); };
+    current.onerror = () => { clearTimeout(timer); reject(Error('Não foi possível conectar. Confira o servidor.')); };
+  });
+}
+async function publishTo(id, streamId) {
+  const stream = local;
+  if (!stream || streams.get(room?.id) !== streamId || !members.has(id)) return;
+  try { await transport.publish(id, stream, Number($('bitrate').value), streamId); }
+  catch (e) { if (local === stream) { stop(); status(e.message); } }
+}
+async function handle(m) {
+  if (m.type === 'error') { busy = false; render(); status(m.message); }
+  if (m.type === 'ice-config') transport.configure(m.iceServers, m.iceTransportPolicy);
+  if (m.type === 'joined') {
+    transport.configure(m.iceServers || [], m.iceTransportPolicy);
+    room = m; members.clear(); streams.clear();
+    for (const p of m.peers) members.set(p.id, p.name);
+    for (const s of m.streams) streams.set(s.id, s.streamId);
+    busy = false; render(); status('Você está na sala. Assista às telas ou compartilhe a sua. Até 3 ao mesmo tempo.');
+  }
+  if (m.type === 'peer-joined' && room) {
+    members.set(m.id, m.name); render();
+    const streamId = streams.get(room.id);
+    if (streamId) await publishTo(m.id, streamId);
+  }
+  if (m.type === 'peer-left') { members.delete(m.id); transport.remove(m.id); render(); }
+  if (m.type === 'stream-started' && room) {
+    streams.set(m.from, m.streamId); render();
+    if (m.from === room.id) {
+      clearTimeout(claimTimer);
+      if (!local) { send({ type: 'stream-stopped', streamId: m.streamId }); return; }
+      busy = false; showVideo(local, room.id, m.streamId);
+      status('Sua tela está compartilhada. Você também pode assistir às outras.');
+      for (const id of members.keys()) if (id !== room?.id) await publishTo(id, m.streamId);
+    } else status(`${members.get(m.from) || 'Amigo'} começou a transmitir.`);
+  }
+  if (m.type === 'stream-denied') { stop(false); status(m.message); }
+  if (m.type === 'signal' && room && members.has(m.from) && [...streams.values()].includes(m.streamId)) {
+    await transport.receive(m.from, m.data, m.streamId);
+  }
+  if (m.type === 'stream-stopped') {
+    if (streams.get(m.from) !== m.streamId) return;
+    if (m.from === room?.id) stop(false);
+    streams.delete(m.from); removeVideo(m.streamId); render();
+    status('Uma transmissão terminou. A sala continua aberta e há vaga para compartilhar.');
+  }
+  if (m.type === 'left') { reset(); status('Você saiu. A sala continua enquanto houver participantes.'); }
+}
+async function join(type) {
+  if (busy || room) return;
+  busy = true; render();
+  try {
+    const name = $('name').value.trim(), code = $('code').value.trim().toUpperCase();
+    if (!name || name.length > 32) throw Error('Informe seu nome (até 32 caracteres).');
+    if (type === 'join' && !/^[A-F0-9]{8}$/.test(code)) throw Error('Digite os 8 caracteres do código.');
+    await connect(); send({ type, name, code, accessKey: $('access-key').value });
+  } catch (e) { busy = false; render(); status(e.message); }
+}
+$('create').onclick = () => join('create'); $('join').onclick = () => join('join');
+$('leave').onclick = () => { try { send({ type: 'leave' }); reset(); } catch (e) { reset(); status(e.message); } };
+$('copy').onclick = async () => { try { await navigator.clipboard.writeText(room.code); status('Código copiado.'); } catch { status(`Copie o código: ${room?.code || ''}`); } };
+$('share').onclick = async () => {
+  if (!room || streams.size >= 3 || streams.has(room?.id) || local || busy) return;
+  busy = true; render(); const current = ++generation;
+  try {
+    if (!navigator.mediaDevices?.getDisplayMedia) throw Error('Captura indisponível neste runtime. Abra http://127.0.0.1:8787 no Edge.');
+    const stream = await navigator.mediaDevices.getDisplayMedia({
+      video: { width: { ideal: 1920, max: 1920 }, height: { ideal: 1080, max: 1080 }, frameRate: { ideal: 60, max: 60 } }, audio: $('audio').checked,
+    });
+    if (current !== generation || !room) { stream.getTracks().forEach(t => t.stop()); return; }
+    local = stream;
+    const track = stream.getVideoTracks()[0]; track.contentHint = 'motion';
+    track.onended = () => { stop(); status('Sua transmissão foi encerrada. Você continua na sala.'); };
+    // O servidor decide a vaga atomicamente. Nenhum frame sai antes da confirmação.
+    send({ type: 'start-stream' });
+    claimTimer = setTimeout(() => { if (busy && local) { stop(); status('Sem confirmação do servidor. Tente novamente.'); } }, 5000);
+    status(`Preparando sua transmissão. ${stream.getAudioTracks().length ? 'Áudio incluído.' : 'Sem áudio do sistema.'}`);
+  } catch (e) {
+    if (current === generation) { stop(false); status(e.name === 'NotAllowedError' ? 'Seleção cancelada ou permissão negada.' : e.message); }
+  }
+};
+$('stop').onclick = () => { stop(); status('Você parou de transmitir e continua assistindo.'); };
+$('probe').onclick = async () => {
+  if (!window.__TAURI__) { $('native-status').textContent = 'Este teste exige o aplicativo Tauri no Windows.'; return; }
+  $('probe').disabled = true; $('native-status').textContent = 'Escolha uma tela ou janela no seletor do Windows…';
+  try { $('native-status').textContent = await window.__TAURI__.core.invoke('capture_probe'); }
+  catch (e) { $('native-status').textContent = String(e); }
+  finally { $('probe').disabled = false; }
+};
+let statsBusy = false;
+setInterval(async () => {
+  if (statsBusy) return;
+  statsBusy = true;
+  try { const text = await transport.stats(); $('stats').textContent = text || 'Aguardando vídeo. Use os controles de cada tela para áudio e tela cheia.'; }
+  catch { /* Uma conexão pode fechar durante a leitura. */ }
+  finally { statsBusy = false; }
+}, 2000);
+setInterval(() => { if (room && socket?.readyState === WebSocket.OPEN) send({ type: 'ice-config' }); }, 10 * 60_000);
+window.addEventListener('beforeunload', () => { reset(); socket?.close(); });
+render();
+
