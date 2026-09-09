@@ -1,0 +1,23 @@
+{
+  "name": "amigos-tela",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node server/index.js",
+    "test": "node --test test/*.test.js",
+    "desktop": "tauri dev",
+    "build": "tauri build --no-bundle",
+    "start": "node server/index.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.8.4"
+  }
+}
+
