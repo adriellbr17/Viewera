@@ -4,7 +4,7 @@
 <body><div class="app">
   <aside class="servers" aria-label="Grupos"><a href="/" class="logo brand-symbol" aria-label="Viewera"><img src="/assets/symbol.svg" alt=""></a><div class="divider"></div><div id="groups"></div><button class="server-add" id="show-group-form" title="Criar ou entrar em grupo">+</button></aside>
   <aside class="channels-pane">
-    <div class="server-header"><img class="wordmark" src="/assets/wordmark.svg" alt="Viewera"><span>⌄</span></div>
+    <div class="server-header"><img class="wordmark" src="/assets/wordmark.svg" alt="Viewera"></div>
     <div class="channel-scroll">
       <div class="section">Canais</div><button class="channel"># geral</button>
       <div class="section">Voz e tela</div><button class="channel active">◉ Sala principal</button>
@@ -25,3 +25,4 @@
   </main>
   <aside class="members-pane"><div class="members-title">Participantes — até 20</div><ul id="peers"></ul><div class="tech-note">Até 3 pessoas podem transmitir ao mesmo tempo. O link entra automaticamente, sem código.</div></aside>
 </div><section id="auth" class="auth"><div class="auth-card"><img class="auth-logo" src="/assets/logo.svg" alt="Viewera"><p>Entre para acessar seus grupos.</p><div class="auth-tabs"><button id="login-tab" class="active">Entrar</button><button id="register-tab">Criar conta</button></div><form id="auth-form"><label id="auth-name-label" hidden>Nome<input id="auth-name" maxlength="24"></label><label>E-mail<input id="auth-email" type="email" required autocomplete="email"></label><label>Senha<input id="auth-password" type="password" required minlength="8" maxlength="72" autocomplete="current-password"></label><button class="btn primary" id="auth-submit">Entrar</button><p id="auth-error" role="alert"></p></form></div></section><script type="module" src="/app.js"></script></body></html>
+
