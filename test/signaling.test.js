@@ -42,6 +42,8 @@ test('10 participantes, 3 transmissões, isolamento, troca e saída independente
     peer.info = await peer.next('joined'); peers.push(peer);
   }
   assert.equal(peers[8].info.peers.length, 10);
+  creator.send({ type: 'chat', text: 'Olá, grupo!' });
+  assert.equal((await peers[0].next('chat')).text, 'Olá, grupo!');
   const extra = await client(url);
   extra.send({ type: 'join', code: room.code, name: 'Extra' });
   assert.match((await extra.next('error')).message, /cheia/);

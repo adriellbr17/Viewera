@@ -6,8 +6,8 @@
   <aside class="channels-pane">
     <div class="server-header"><img class="wordmark" src="/assets/wordmark.svg" alt="Viewera"></div>
     <div class="channel-scroll">
-      <div class="section">Canais</div><button class="channel"># geral</button>
-      <div class="section">Voz e tela</div><button class="channel active">◉ Sala principal</button>
+      <div class="section">Canais</div><button class="channel" id="chat-channel"># geral</button>
+      <div class="section">Voz e tela</div><button class="channel active" id="voice-channel">◉ Sala principal</button>
       <div class="join-box" id="group-form" hidden><label for="group-name">Criar grupo</label><input id="group-name" maxlength="32" placeholder="Nome do grupo"><button id="create-group" class="btn primary">Criar</button><label for="invite-code">Entrar com convite</label><input id="invite-code" placeholder="Cole o link ou convite"><button id="join-group" class="btn">Entrar</button></div>
       <div hidden><input id="name"><input id="access-key"><input id="server" value="ws://127.0.0.1:8787/signal"><button id="create"></button><input id="code"><button id="join"></button><div id="connection-settings"></div></div>
       <div id="room" hidden><button id="copy" class="btn primary wide">Copiar convite</button><button id="leave" class="btn danger wide">Sair da chamada</button></div>
@@ -16,13 +16,12 @@
   </aside>
   <main class="main">
     <header class="topbar"><div class="room-meta"><div class="room-icon">🔊</div><div><h1 id="room-title">Sala principal</h1><p><span id="count">0 / 20</span> pessoas · <span id="stream-count">0 / 3 transmitindo</span></p></div></div><div class="quality">1080p · 60 FPS</div></header>
-    <div class="content">
+    <div class="content" id="live-view">
       <section class="stage"><div id="videos" aria-label="Transmissões da sala"></div><div id="empty" class="placeholder"><div class="placeholder-icon">▣</div><h2>Ninguém está transmitindo</h2><p>Entre na sala para assistir ou compartilhar uma tela, janela ou jogo.</p><button id="share-big" class="btn primary" disabled>Compartilhar tela</button></div></section>
       <div class="controls"><label class="control audio-control"><input type="checkbox" id="audio"><span>🔊 Áudio do sistema</span></label><label class="bitrate">Qualidade <select id="quality"><option value="1080">1080p · 60 FPS</option><option value="720">720p · 30 FPS</option></select></label><select id="bitrate" hidden><option value="8" selected>8</option><option value="4">4</option></select><button id="share" class="control share" disabled>▣ <span>Compartilhar</span></button><button id="stop" class="control end" disabled>■ Parar</button></div>
       <p id="stats">Qualidade e áudio dependem do dispositivo e da conexão.</p>
       <details class="advanced"><summary>Opções técnicas</summary><button id="probe" class="btn">Testar captura WGC</button><p id="native-status" role="status"></p></details>
-    </div>
+    </div><section id="chat-view" class="chat-view" hidden><header><div><h2># geral</h2><p>Conversa do grupo</p></div></header><div id="messages" class="messages"></div><form id="chat-form" class="chat-form"><input id="chat-input" maxlength="1000" autocomplete="off" placeholder="Conversar em #geral" aria-label="Mensagem"><button class="btn primary">Enviar</button></form></section>
   </main>
   <aside class="members-pane"><div class="members-title">Participantes — até 20</div><ul id="peers"></ul><div class="tech-note">Até 3 pessoas podem transmitir ao mesmo tempo. O link entra automaticamente, sem código.</div></aside>
 </div><section id="auth" class="auth"><div class="auth-card"><img class="auth-logo" src="/assets/logo.svg" alt="Viewera"><p>Entre para acessar seus grupos.</p><div class="auth-tabs"><button id="login-tab" class="active">Entrar</button><button id="register-tab">Criar conta</button></div><form id="auth-form"><label id="auth-name-label" hidden>Nome<input id="auth-name" maxlength="24"></label><label>E-mail<input id="auth-email" type="email" required autocomplete="email"></label><label>Senha<input id="auth-password" type="password" required minlength="8" maxlength="72" autocomplete="current-password"></label><button class="btn primary" id="auth-submit">Entrar</button><p id="auth-error" role="alert"></p></form></div></section><script type="module" src="/app.js"></script></body></html>
-

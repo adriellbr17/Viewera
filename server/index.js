@@ -127,12 +127,12 @@ export function createServer({ origins = ['http://127.0.0.1:8787', 'http://local
             const group = accounts.group(m.code);
             if (!group || !group.members.includes(ws.user.id)) throw Error('Você não participa deste grupo.');
             code = group.id; room = rooms.get(code);
-            if (!room) { room = { streams: new Map(), members: new Map() }; rooms.set(code, room); }
+            if (!room) { room = { streams: new Map(), members: new Map(), messages: [] }; rooms.set(code, room); }
             if (room.members.size >= 20) throw Error('Sala cheia (máximo 20 pessoas).');
           } else if (m.type === 'create') {
             if (rooms.size >= 100) throw Error('Servidor cheio');
             do { code = randomBytes(4).toString('hex').toUpperCase(); } while (rooms.has(code));
-            room = { streams: new Map(), members: new Map() };
+            room = { streams: new Map(), members: new Map(), messages: [] };
             rooms.set(code, room);
           } else {
             if (typeof m.code !== 'string' || !/^[A-F0-9]{8}$/.test(m.code)) throw Error('Código inválido');
@@ -141,7 +141,7 @@ export function createServer({ origins = ['http://127.0.0.1:8787', 'http://local
             if (room.members.size >= 10) throw Error('Sala cheia (máximo 10 pessoas)');
           }
           ws.room = code; ws.name = accounts ? ws.user.name : m.name.trim(); room.members.set(ws.id, ws);
-          send(ws, { type: 'joined', id: ws.id, code, iceServers, iceTransportPolicy: relayOnly ? 'relay' : 'all', streams: [...room.streams].map(([id, streamId]) => ({ id, streamId })),
+          send(ws, { type: 'joined', id: ws.id, code, iceServers, iceTransportPolicy: relayOnly ? 'relay' : 'all', messages: room.messages || [], streams: [...room.streams].map(([id, streamId]) => ({ id, streamId })),
             peers: [...room.members.values()].map(p => ({ id: p.id, name: p.name })) });
           broadcast(room, { type: 'peer-joined', id: ws.id, name: ws.name }, ws.id);
           return;
@@ -157,6 +157,12 @@ export function createServer({ origins = ['http://127.0.0.1:8787', 'http://local
           }
           const streamId = randomUUID(); room.streams.set(ws.id, streamId);
           broadcast(room, { type: 'stream-started', from: ws.id, streamId }); return;
+        }
+        if (m.type === 'chat') {
+          if (typeof m.text !== 'string' || !m.text.trim() || m.text.length > 1000) throw Error('Mensagem inválida (máximo 1000 caracteres).');
+          const message = { type: 'chat', id: randomUUID(), from: ws.id, name: ws.name, text: m.text.trim(), time: Date.now() };
+          room.messages ||= []; room.messages.push(message); if (room.messages.length > 100) room.messages.shift();
+          broadcast(room, message); return;
         }
         if (m.type === 'stream-stopped') {
           if (!room.streams.has(ws.id)) throw Error('Você não está transmitindo');

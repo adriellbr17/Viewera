@@ -3,6 +3,7 @@ const $ = id => document.getElementById(id);
 let socket, room, local, busy = false, generation = 0, claimTimer;
 const members = new Map(), streams = new Map(), videos = new Map();
 let account, groups = [], currentGroup, authMode = 'login';
+let chatMessages = [];
 const invitedGroup = new URLSearchParams(location.search).get('invite')?.trim();
 const isDesktop = !!window.__TAURI__;
 if (!isDesktop) $('server').value = new URL('/signal', location.href).href.replace(/^http/, 'ws');
@@ -12,6 +13,17 @@ const send = message => {
   if (socket?.readyState !== WebSocket.OPEN) throw Error('Servidor desconectado');
   socket.send(JSON.stringify(message));
 };
+function renderChat() {
+  if (!chatMessages.length) { const empty = document.createElement('p'); empty.className = 'chat-empty'; empty.textContent = 'Nenhuma mensagem ainda. Comece a conversa.'; $('messages').replaceChildren(empty); return; }
+  $('messages').replaceChildren(...chatMessages.map(message => {
+    const row = document.createElement('article'); row.className = 'message';
+    const avatar = document.createElement('div'); avatar.className = 'avatar'; avatar.textContent = message.name.slice(0, 2).toUpperCase();
+    const title = document.createElement('div'), name = document.createElement('b'), time = document.createElement('time'), text = document.createElement('p');
+    name.textContent = message.name; time.textContent = new Date(message.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); text.textContent = message.text;
+    title.append(name, time); row.append(avatar, title, text); return row;
+  }));
+  $('messages').scrollTop = $('messages').scrollHeight;
+}
 function showVideo(stream, id, streamId) {
   if (!videos.has(streamId)) {
     const card = document.createElement('div'); card.className = 'video-card';
@@ -65,7 +77,7 @@ function stop(notify = true) {
 function reset() {
   stop(false); transport.close();
   for (const streamId of videos.keys()) removeVideo(streamId);
-  room = null; members.clear(); streams.clear(); render();
+  room = null; members.clear(); streams.clear(); chatMessages = []; renderChat(); render();
   $('stats').textContent = 'Qualidade e áudio dependem do dispositivo e da conexão.';
 }
 async function connect() {
@@ -99,6 +111,7 @@ async function handle(m) {
   if (m.type === 'joined') {
     transport.configure(m.iceServers || [], m.iceTransportPolicy);
     room = m; members.clear(); streams.clear();
+    chatMessages = Array.isArray(m.messages) ? m.messages : []; renderChat();
     for (const p of m.peers) members.set(p.id, p.name);
     for (const s of m.streams) streams.set(s.id, s.streamId);
     busy = false; render(); status('Você está na sala. Assista ou compartilhe sua tela.');
@@ -109,6 +122,7 @@ async function handle(m) {
     if (streamId) await publishTo(m.id, streamId);
   }
   if (m.type === 'peer-left') { members.delete(m.id); transport.remove(m.id); render(); }
+  if (m.type === 'chat') { chatMessages.push(m); if (chatMessages.length > 100) chatMessages.shift(); renderChat(); }
   if (m.type === 'stream-started' && room) {
     streams.set(m.from, m.streamId); render();
     if (m.from === room.id) {
@@ -224,4 +238,7 @@ $('auth-form').onsubmit = async event => { event.preventDefault(); $('auth-error
 $('show-group-form').onclick = () => { $('group-form').hidden = !$('group-form').hidden; };
 $('create-group').onclick = async () => { try { const { group } = await api('/api/groups', { method: 'POST', body: JSON.stringify({ name: $('group-name').value }) }); groups.push(group); $('group-name').value = ''; $('group-form').hidden = true; drawGroups(); await enterGroup(group); } catch (e) { status(e.message); } };
 $('join-group').onclick = async () => { try { const raw = $('invite-code').value.trim(); const invite = new URL(raw, location.href).searchParams.get('invite') || raw; const { group } = await api('/api/groups/join', { method: 'POST', body: JSON.stringify({ invite }) }); if (!groups.some(g => g.id === group.id)) groups.push(group); $('invite-code').value = ''; $('group-form').hidden = true; drawGroups(); await enterGroup(group); } catch (e) { status(e.message); } };
+$('chat-channel').onclick = () => { $('live-view').hidden = true; $('chat-view').hidden = false; $('chat-channel').classList.add('active'); $('voice-channel').classList.remove('active'); $('chat-input').focus(); };
+$('voice-channel').onclick = () => { $('chat-view').hidden = true; $('live-view').hidden = false; $('voice-channel').classList.add('active'); $('chat-channel').classList.remove('active'); };
+$('chat-form').onsubmit = event => { event.preventDefault(); const text = $('chat-input').value.trim(); if (!room || !text) return; try { send({ type: 'chat', text }); $('chat-input').value = ''; } catch (e) { status(e.message); } };
 api('/api/me').then(loadAccount).catch(() => { $('auth').hidden = false; });
