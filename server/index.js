@@ -44,10 +44,10 @@ export function createServer({ origins = ['http://127.0.0.1:8787', 'http://local
       const input = await body(req);
       if (path === '/api/register' || path === '/api/login') {
         const account = path.endsWith('register') ? await accounts.register(input.name, input.email, input.password) : await accounts.login(input.email, input.password);
-        const sid = accounts.start(account);
-        return json(res, 200, { user: { id: account.id, name: account.name, email: account.email }, groups: accounts.groupsFor(account) }, { 'Set-Cookie': `sid=${sid}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000` });
+        const remember = input.remember === true, sid = await accounts.start(account, remember);
+        return json(res, 200, { user: { id: account.id, name: account.name, email: account.email }, groups: accounts.groupsFor(account) }, { 'Set-Cookie': `sid=${sid}; HttpOnly; SameSite=Strict; Path=/${remember ? '; Max-Age=2592000' : ''}` });
       }
-      if (path === '/api/logout') { const sid = sidOf(req); if (sid) accounts.sessions.delete(sid); return json(res, 200, { ok: true }, { 'Set-Cookie': 'sid=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0' }); }
+      if (path === '/api/logout') { const sid = sidOf(req); if (sid) await accounts.end(sid); return json(res, 200, { ok: true }, { 'Set-Cookie': 'sid=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0' }); }
       if (!user) return json(res, 401, { error: 'Faça login.' });
       if (path === '/api/groups') { const group = await accounts.createGroup(user, input.name); return json(res, 200, { group: { id: group.id, name: group.name, invite: group.invite, members: 1 } }); }
       if (path === '/api/groups/join') { const group = await accounts.joinGroup(user, input.invite); return json(res, 200, { group: { id: group.id, name: group.name, invite: group.invite, members: group.members.length } }); }
@@ -215,3 +215,4 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   app.server.listen(port, host, () => console.log(`Viewera: http://${host}:${port}`));
   for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, async () => { await app.close(); });
 }
+

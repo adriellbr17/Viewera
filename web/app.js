@@ -234,7 +234,7 @@ function setAuthMode(mode) {
   $('auth-name-label').hidden = mode === 'login'; $('auth-submit').textContent = mode === 'login' ? 'Entrar' : 'Criar conta'; $('auth-password').autocomplete = mode === 'login' ? 'current-password' : 'new-password'; $('auth-error').textContent = '';
 }
 $('login-tab').onclick = () => setAuthMode('login'); $('register-tab').onclick = () => setAuthMode('register');
-$('auth-form').onsubmit = async event => { event.preventDefault(); $('auth-error').textContent = ''; try { await loadAccount(await api(`/api/${authMode}`, { method: 'POST', body: JSON.stringify({ name: $('auth-name').value, email: $('auth-email').value, password: $('auth-password').value }) })); } catch (e) { $('auth-error').textContent = e.message; } };
+$('auth-form').onsubmit = async event => { event.preventDefault(); $('auth-error').textContent = ''; try { await loadAccount(await api(`/api/${authMode}`, { method: 'POST', body: JSON.stringify({ name: $('auth-name').value, email: $('auth-email').value, password: $('auth-password').value, remember: $('remember').checked }) })); } catch (e) { $('auth-error').textContent = e.message; } };
 $('show-group-form').onclick = () => { $('group-form').hidden = !$('group-form').hidden; };
 $('create-group').onclick = async () => { try { const { group } = await api('/api/groups', { method: 'POST', body: JSON.stringify({ name: $('group-name').value }) }); groups.push(group); $('group-name').value = ''; $('group-form').hidden = true; drawGroups(); await enterGroup(group); } catch (e) { status(e.message); } };
 $('join-group').onclick = async () => { try { const raw = $('invite-code').value.trim(); const invite = new URL(raw, location.href).searchParams.get('invite') || raw; const { group } = await api('/api/groups/join', { method: 'POST', body: JSON.stringify({ invite }) }); if (!groups.some(g => g.id === group.id)) groups.push(group); $('invite-code').value = ''; $('group-form').hidden = true; drawGroups(); await enterGroup(group); } catch (e) { status(e.message); } };
@@ -242,3 +242,4 @@ $('chat-channel').onclick = () => { $('live-view').hidden = true; $('chat-view')
 $('voice-channel').onclick = () => { $('chat-view').hidden = true; $('live-view').hidden = false; $('voice-channel').classList.add('active'); $('chat-channel').classList.remove('active'); };
 $('chat-form').onsubmit = event => { event.preventDefault(); const text = $('chat-input').value.trim(); if (!room || !text) return; try { send({ type: 'chat', text }); $('chat-input').value = ''; } catch (e) { status(e.message); } };
 api('/api/me').then(loadAccount).catch(() => { $('auth').hidden = false; });
+
