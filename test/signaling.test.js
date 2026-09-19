@@ -26,6 +26,7 @@ test('10 participantes, 3 transmissões, isolamento, troca e saída independente
   t.after(() => app.close());
   const base = `http://127.0.0.1:${app.server.address().port}`;
   assert.equal((await fetch(base)).status, 200);
+  assert.equal((await fetch(`${base}/?room=ABCDEF12`)).status, 200);
   assert.equal((await fetch(`${base}/../package.json`)).status, 404);
   const url = base.replace('http:', 'ws:') + '/signal';
   const denied = new WebSocket(url, { origin: 'https://evil.invalid' });
@@ -102,4 +103,3 @@ test('10 participantes, 3 transmissões, isolamento, troca e saída independente
   extra.send({ type: 'leave' }); await extra.next('left');
   assert.equal(app.rooms.has(other.code), false);
 });
-

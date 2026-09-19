@@ -2,6 +2,7 @@ import { PeerTransport } from './transport.js';
 const $ = id => document.getElementById(id);
 let socket, room, local, busy = false, generation = 0, claimTimer;
 const members = new Map(), streams = new Map(), videos = new Map();
+const invitedRoom = new URLSearchParams(location.search).get('room')?.trim().toUpperCase();
 const isDesktop = !!window.__TAURI__;
 if (!isDesktop) $('server').value = new URL('/signal', location.href).href.replace(/^http/, 'ws');
 if (!isDesktop && location.protocol === 'https:') $('connection-settings').hidden = true;
@@ -31,7 +32,8 @@ function removeVideo(streamId) {
 const transport = new PeerTransport((to, data, streamId) => send({ type: 'signal', to, data, streamId }), showVideo,
   (id, state) => status(`${members.get(id) || 'Amigo'}: ${({connected:'conectado',connecting:'conectando',disconnected:'conexão interrompida',failed:'conexão falhou — entre novamente; outra rede pode exigir TURN'})[state] || state}`));
 function render() {
-  $('room').hidden = !room; $('room-code').textContent = room?.code || '';
+  $('room').hidden = !room;
+  $('room-title').textContent = room ? `Sala ${room.code}` : invitedRoom ? 'Entrando na sala…' : 'Entrar no grupo';
   $('count').textContent = `${members.size} / 10`;
   $('stream-count').textContent = `${streams.size} / 3 transmitindo`;
   $('empty').hidden = videos.size > 0;
@@ -96,7 +98,8 @@ async function handle(m) {
     room = m; members.clear(); streams.clear();
     for (const p of m.peers) members.set(p.id, p.name);
     for (const s of m.streams) streams.set(s.id, s.streamId);
-    busy = false; render(); status('Você está na sala. Assista às telas ou compartilhe a sua. Até 3 ao mesmo tempo.');
+    history.replaceState(null, '', `${location.pathname}?room=${encodeURIComponent(m.code)}`);
+    busy = false; render(); status('Você está na sala. Assista ou compartilhe sua tela.');
   }
   if (m.type === 'peer-joined' && room) {
     members.set(m.id, m.name); render();
@@ -138,7 +141,11 @@ async function join(type) {
 }
 $('create').onclick = () => join('create'); $('join').onclick = () => join('join');
 $('leave').onclick = () => { try { send({ type: 'leave' }); reset(); } catch (e) { reset(); status(e.message); } };
-$('copy').onclick = async () => { try { await navigator.clipboard.writeText(room.code); status('Código copiado.'); } catch { status(`Copie o código: ${room?.code || ''}`); } };
+$('copy').onclick = async () => {
+  const link = `${location.origin}${location.pathname}?room=${encodeURIComponent(room.code)}`;
+  try { await navigator.clipboard.writeText(link); status('Link de convite copiado. Envie aos seus amigos.'); }
+  catch { status(`Envie este link: ${link}`); }
+};
 $('share').onclick = async () => {
   if (!room || streams.size >= 3 || streams.has(room?.id) || local || busy) return;
   busy = true; render(); const current = ++generation;
@@ -178,4 +185,8 @@ setInterval(async () => {
 setInterval(() => { if (room && socket?.readyState === WebSocket.OPEN) send({ type: 'ice-config' }); }, 10 * 60_000);
 window.addEventListener('beforeunload', () => { reset(); socket?.close(); });
 render();
-
+if (/^[A-F0-9]{8}$/.test(invitedRoom || '')) {
+  $('code').value = invitedRoom;
+  status('Entrando automaticamente na sala do seu amigo…');
+  join('join');
+}

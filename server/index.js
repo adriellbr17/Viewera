@@ -24,7 +24,7 @@ export function createServer({ origins = ['http://127.0.0.1:8787', 'http://local
   const digest = value => createHash('sha256').update(value).digest();
   const server = http.createServer(async (req, res) => {
     if (req.url === '/healthz') { res.writeHead(200, { 'Content-Type': 'text/plain' }).end('ok'); return; }
-    const file = files.get(req.url);
+    const file = files.get(new URL(req.url, 'http://localhost').pathname);
     if (!file || req.method !== 'GET') { res.writeHead(404).end(); return; }
     try {
       const body = await readFile(new URL(`../web/${file[0]}`, import.meta.url));
@@ -166,5 +166,3 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   app.server.listen(port, host, () => console.log(`Amigos Tela: http://${host}:${port}`));
   for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, async () => { await app.close(); });
 }
-
-
