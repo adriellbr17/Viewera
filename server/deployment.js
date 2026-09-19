@@ -7,8 +7,8 @@ export function deploymentConfig(env = process.env, request = fetch) {
   }
   const accessKey = env.ACCESS_KEY || '';
   const account = env.TWILIO_ACCOUNT_SID || '', token = env.TWILIO_AUTH_TOKEN || '';
-  if (production && (!publicOrigin || (accessKey.length < 24 || accessKey.length > 256) || !account || !token)) {
-    throw Error('Configure PUBLIC_ORIGIN, ACCESS_KEY (mínimo 24 caracteres), TWILIO_ACCOUNT_SID e TWILIO_AUTH_TOKEN antes de publicar.');
+  if (production && (!publicOrigin || !account || !token)) {
+    throw Error('Configure PUBLIC_ORIGIN, TWILIO_ACCOUNT_SID e TWILIO_AUTH_TOKEN antes de publicar.');
   }
   if (!!account !== !!token) throw Error('Configure as duas credenciais Twilio.');
   if (account && !/^AC[a-f0-9]{32}$/i.test(account)) throw Error('TWILIO_ACCOUNT_SID inválido.');
@@ -40,5 +40,4 @@ export function deploymentConfig(env = process.env, request = fetch) {
     accessKey, iceProvider, relayOnly: env.ICE_RELAY_ONLY === 'true',
   };
 }
-
 

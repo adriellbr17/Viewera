@@ -1,4 +1,4 @@
-# Amigos Tela — protótipo Windows
+# Viewera — protótipo Windows
 
 App pequeno para compartilhar uma tela ou janela com até nove amigos. Tauri 2 + Rust no desktop, interface HTML/CSS/JS sem framework e signaling WebSocket em Node, preparado para hospedagem HTTPS/WSS.
 
@@ -61,7 +61,7 @@ Gerar o executável após instalar os pré-requisitos:
 npm.cmd run build
 ```
 
-Saída esperada: `src-tauri/target/release/amigos-tela.exe`. A interface é embutida no executável; o servidor de salas continua sendo um processo separado. Não há instalador nem assinatura nesta entrega. O primeiro build Rust precisa de internet para baixar crates. `Cargo.lock` será gerado no primeiro build; versioná-lo após validar. `package-lock.json` já acompanha o projeto.
+Saída esperada: `src-tauri/target/release/viewera.exe`. A interface é embutida no executável; o servidor de salas continua sendo um processo separado. Não há instalador nem assinatura nesta entrega. O primeiro build Rust precisa de internet para baixar crates. `Cargo.lock` será gerado no primeiro build; versioná-lo após validar. `package-lock.json` já acompanha o projeto.
 
 ## Rede: teste local e publicação
 
@@ -130,4 +130,3 @@ Antes de considerar 1080p60 validado: transmitir fonte com movimento entre dois 
 Quem entra recebe automaticamente as transmissões ativas e pode controlar som/reprodução de cada uma. **Parar minha transmissão** libera uma vaga e mantém as outras telas. Para testar, entre com quatro participantes e compartilhe em três deles; o quarto verá o limite preenchido. Ao parar uma, ele poderá compartilhar.
 
 Em P2P, três transmissores podem criar até 27 conexões de mídia na sala de 10 pessoas. A 8 Mbps por tela, um espectador de três telas pode receber cerca de 24 Mbps de vídeo; cada transmissor continua podendo enviar perto de 72 Mbps. Esses números são estimativas aritméticas, não benchmarks. A capacidade de sala/transmissões foi testada no signaling; três vídeos 1080p60 simultâneos ainda precisam de validação real.
-

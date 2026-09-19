@@ -1,8 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "Janela local do Amigos Tela",
+  "description": "Janela local do Viewera",
   "windows": ["main"],
   "permissions": ["core:default"]
 }
-

@@ -18,6 +18,5 @@ fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![capture_probe])
         .run(tauri::generate_context!())
-        .expect("Falha ao iniciar Amigos Tela");
+        .expect("Falha ao iniciar Viewera");
 }
-

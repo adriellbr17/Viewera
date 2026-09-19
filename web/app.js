@@ -2,7 +2,8 @@ import { PeerTransport } from './transport.js';
 const $ = id => document.getElementById(id);
 let socket, room, local, busy = false, generation = 0, claimTimer;
 const members = new Map(), streams = new Map(), videos = new Map();
-const invitedRoom = new URLSearchParams(location.search).get('room')?.trim().toUpperCase();
+let account, groups = [], currentGroup, authMode = 'login';
+const invitedGroup = new URLSearchParams(location.search).get('invite')?.trim();
 const isDesktop = !!window.__TAURI__;
 if (!isDesktop) $('server').value = new URL('/signal', location.href).href.replace(/^http/, 'ws');
 if (!isDesktop && location.protocol === 'https:') $('connection-settings').hidden = true;
@@ -33,10 +34,9 @@ const transport = new PeerTransport((to, data, streamId) => send({ type: 'signal
   (id, state) => status(`${members.get(id) || 'Amigo'}: ${({connected:'conectado',connecting:'conectando',disconnected:'conexão interrompida',failed:'conexão falhou — entre novamente; outra rede pode exigir TURN'})[state] || state}`));
 function render() {
   $('room').hidden = !room;
-  $('join-box').hidden = !!room;
-  $('room-title').textContent = room ? `Sala ${room.code}` : invitedRoom ? 'Entrando na sala…' : 'Sala principal';
-  $('profile-name').textContent = $('name').value.trim() || 'Você';
-  $('count').textContent = `${members.size} / 10`;
+  $('room-title').textContent = currentGroup?.name || 'Escolha um grupo';
+  $('profile-name').textContent = account?.name || 'Você';
+  $('count').textContent = `${members.size} / 20`;
   $('stream-count').textContent = `${streams.size} / 3 transmitindo`;
   $('empty').hidden = videos.size > 0;
   $('share-big').disabled = !room || streams.size >= 3 || streams.has(room?.id) || !!local || busy;
@@ -44,7 +44,7 @@ function render() {
   $('name').disabled = $('server').disabled = $('access-key').disabled = !!room || busy;
   $('share').disabled = !room || streams.size >= 3 || streams.has(room?.id) || !!local || busy;
   $('stop').disabled = !local;
-  $('audio').disabled = $('bitrate').disabled = !!local || busy;
+  $('audio').disabled = $('quality').disabled = !!local || busy;
   $('peers').replaceChildren(...[...members].map(([id, name]) => {
     const li = document.createElement('li');
     li.textContent = `${name} · ${streams.has(id) ? 'transmitindo' : 'assistindo'}${id === room?.id ? ' · você' : ''}`;
@@ -101,7 +101,6 @@ async function handle(m) {
     room = m; members.clear(); streams.clear();
     for (const p of m.peers) members.set(p.id, p.name);
     for (const s of m.streams) streams.set(s.id, s.streamId);
-    history.replaceState(null, '', `${location.pathname}?room=${encodeURIComponent(m.code)}`);
     busy = false; render(); status('Você está na sala. Assista ou compartilhe sua tela.');
   }
   if (m.type === 'peer-joined' && room) {
@@ -145,7 +144,7 @@ async function join(type) {
 $('create').onclick = () => join('create'); $('join').onclick = () => join('join');
 $('leave').onclick = () => { try { send({ type: 'leave' }); reset(); } catch (e) { reset(); status(e.message); } };
 $('copy').onclick = async () => {
-  const link = `${location.origin}${location.pathname}?room=${encodeURIComponent(room.code)}`;
+  const link = `${location.origin}${location.pathname}?invite=${encodeURIComponent(currentGroup.invite)}`;
   try { await navigator.clipboard.writeText(link); status('Link de convite copiado. Envie aos seus amigos.'); }
   catch { status(`Envie este link: ${link}`); }
 };
@@ -155,8 +154,10 @@ $('share').onclick = async () => {
   busy = true; render(); const current = ++generation;
   try {
     if (!navigator.mediaDevices?.getDisplayMedia) throw Error('Captura indisponível neste runtime. Abra http://127.0.0.1:8787 no Edge.');
+    const hd = $('quality').value === '1080';
+    $('bitrate').value = hd ? '8' : '4';
     const stream = await navigator.mediaDevices.getDisplayMedia({
-      video: { width: { ideal: 1920, max: 1920 }, height: { ideal: 1080, max: 1080 }, frameRate: { ideal: 60, max: 60 } }, audio: $('audio').checked,
+      video: { width: { ideal: hd ? 1920 : 1280, max: hd ? 1920 : 1280 }, height: { ideal: hd ? 1080 : 720, max: hd ? 1080 : 720 }, frameRate: { ideal: hd ? 60 : 30, max: hd ? 60 : 30 } }, audio: $('audio').checked,
     });
     if (current !== generation || !room) { stream.getTracks().forEach(t => t.stop()); return; }
     local = stream;
@@ -189,8 +190,38 @@ setInterval(async () => {
 setInterval(() => { if (room && socket?.readyState === WebSocket.OPEN) send({ type: 'ice-config' }); }, 10 * 60_000);
 window.addEventListener('beforeunload', () => { reset(); socket?.close(); });
 render();
-if (/^[A-F0-9]{8}$/.test(invitedRoom || '')) {
-  $('code').value = invitedRoom;
-  status('Entrando automaticamente na sala do seu amigo…');
-  join('join');
+
+async function api(path, options) {
+  const response = await fetch(path, { ...options, headers: { 'Content-Type': 'application/json', ...options?.headers } });
+  const data = await response.json(); if (!response.ok) throw Error(data.error || 'Falha no servidor.'); return data;
 }
+function drawGroups() {
+  $('groups').replaceChildren(...groups.map(group => {
+    const button = document.createElement('button'); button.className = `server${group.id === currentGroup?.id ? ' active' : ''}`;
+    button.textContent = group.name.split(/\s+/).slice(0, 2).map(x => x[0]).join('').toUpperCase(); button.title = `${group.name} · ${group.members}/20`;
+    button.onclick = () => enterGroup(group); return button;
+  }));
+}
+async function enterGroup(group) {
+  if (currentGroup?.id === group.id && room) return;
+  if (room) { try { send({ type: 'leave' }); } catch {} reset(); }
+  currentGroup = group; $('name').value = account.name; $('code').value = group.id; drawGroups(); render(); await join('join');
+}
+async function loadAccount(data) {
+  account = data.user; groups = data.groups; $('auth').hidden = true; $('name').value = account.name; drawGroups(); render();
+  if (invitedGroup) {
+    try { const joined = await api('/api/groups/join', { method: 'POST', body: JSON.stringify({ invite: invitedGroup }) }); if (!groups.some(g => g.id === joined.group.id)) groups.push(joined.group); history.replaceState(null, '', location.pathname); drawGroups(); await enterGroup(joined.group); }
+    catch (e) { status(e.message); }
+  } else if (groups[0]) await enterGroup(groups[0]);
+  else $('group-form').hidden = false;
+}
+function setAuthMode(mode) {
+  authMode = mode; $('login-tab').classList.toggle('active', mode === 'login'); $('register-tab').classList.toggle('active', mode === 'register');
+  $('auth-name-label').hidden = mode === 'login'; $('auth-submit').textContent = mode === 'login' ? 'Entrar' : 'Criar conta'; $('auth-password').autocomplete = mode === 'login' ? 'current-password' : 'new-password'; $('auth-error').textContent = '';
+}
+$('login-tab').onclick = () => setAuthMode('login'); $('register-tab').onclick = () => setAuthMode('register');
+$('auth-form').onsubmit = async event => { event.preventDefault(); $('auth-error').textContent = ''; try { await loadAccount(await api(`/api/${authMode}`, { method: 'POST', body: JSON.stringify({ name: $('auth-name').value, email: $('auth-email').value, password: $('auth-password').value }) })); } catch (e) { $('auth-error').textContent = e.message; } };
+$('show-group-form').onclick = () => { $('group-form').hidden = !$('group-form').hidden; };
+$('create-group').onclick = async () => { try { const { group } = await api('/api/groups', { method: 'POST', body: JSON.stringify({ name: $('group-name').value }) }); groups.push(group); $('group-name').value = ''; $('group-form').hidden = true; drawGroups(); await enterGroup(group); } catch (e) { status(e.message); } };
+$('join-group').onclick = async () => { try { const raw = $('invite-code').value.trim(); const invite = new URL(raw, location.href).searchParams.get('invite') || raw; const { group } = await api('/api/groups/join', { method: 'POST', body: JSON.stringify({ invite }) }); if (!groups.some(g => g.id === group.id)) groups.push(group); $('invite-code').value = ''; $('group-form').hidden = true; drawGroups(); await enterGroup(group); } catch (e) { status(e.message); } };
+api('/api/me').then(loadAccount).catch(() => { $('auth').hidden = false; });
