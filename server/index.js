@@ -12,6 +12,10 @@ const files = new Map([
   ['/transport.js', ['transport.js', 'text/javascript']],
   ['/style.css', ['style.css', 'text/css']],
   ['/auth.css', ['auth.css', 'text/css']],
+  ['/assets/symbol.svg', ['assets/symbol.svg', 'image/svg+xml']],
+  ['/assets/logo.svg', ['assets/logo.svg', 'image/svg+xml']],
+  ['/assets/wordmark.svg', ['assets/wordmark.svg', 'image/svg+xml']],
+  ['/assets/icon.svg', ['assets/icon.svg', 'image/svg+xml']],
 ]);
 const send = (ws, message) => {
   if (ws.readyState !== WebSocket.OPEN) return;
