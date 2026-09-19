@@ -1,7 +1,7 @@
 import { PeerTransport } from './transport.js';
 const $ = id => document.getElementById(id);
 let socket, room, local, busy = false, generation = 0, claimTimer;
-const members = new Map(), streams = new Map(), videos = new Map();
+const members = new Map(), memberAccounts = new Map(), streams = new Map(), videos = new Map();
 let account, groups = [], currentGroup, authMode = 'login';
 let chatMessages = [];
 const invitedGroup = new URLSearchParams(location.search).get('invite')?.trim();
@@ -57,11 +57,17 @@ function render() {
   $('share').disabled = !room || streams.size >= 3 || streams.has(room?.id) || !!local || busy;
   $('stop').disabled = !local;
   $('audio').disabled = $('quality').disabled = !!local || busy;
-  $('peers').replaceChildren(...[...members].map(([id, name]) => {
-    const li = document.createElement('li');
-    li.textContent = `${name} · ${streams.has(id) ? 'transmitindo' : 'assistindo'}${id === room?.id ? ' · você' : ''}`;
-    return li;
-  }));
+  const onlineAccounts = new Set(memberAccounts.values());
+  const online = [...members].map(([id, name]) => {
+    const li = document.createElement('li'); li.className = 'member online-member';
+    const state = document.createElement('span'); state.className = streams.has(id) ? 'streaming-badge' : 'watching'; state.textContent = streams.has(id) ? 'TRANSMITINDO' : ''; state.title = streams.has(id) ? 'Transmitindo' : 'Assistindo'; state.setAttribute('aria-label', state.title);
+    const label = document.createElement('span'); label.textContent = `${name}${id === room?.id ? ' · você' : ''}`; li.append(label, state); return li;
+  });
+  const offline = (currentGroup?.people || []).filter(person => !onlineAccounts.has(person.id)).map(person => {
+    const li = document.createElement('li'); li.className = 'member offline-member'; li.textContent = person.name; return li;
+  });
+  const offlineTitle = document.createElement('li'); offlineTitle.className = 'member-section'; offlineTitle.textContent = `OFFLINE — ${offline.length}`;
+  $('peers').replaceChildren(...online, offlineTitle, ...offline);
 }
 function stop(notify = true) {
   generation++; clearTimeout(claimTimer); busy = false;
@@ -77,7 +83,7 @@ function stop(notify = true) {
 function reset() {
   stop(false); transport.close();
   for (const streamId of videos.keys()) removeVideo(streamId);
-  room = null; members.clear(); streams.clear(); chatMessages = []; renderChat(); render();
+  room = null; members.clear(); memberAccounts.clear(); streams.clear(); chatMessages = []; renderChat(); render();
   $('stats').textContent = 'Qualidade e áudio dependem do dispositivo e da conexão.';
 }
 async function connect() {
@@ -110,18 +116,18 @@ async function handle(m) {
   if (m.type === 'ice-config') transport.configure(m.iceServers, m.iceTransportPolicy);
   if (m.type === 'joined') {
     transport.configure(m.iceServers || [], m.iceTransportPolicy);
-    room = m; members.clear(); streams.clear();
+    room = m; members.clear(); memberAccounts.clear(); streams.clear();
     chatMessages = Array.isArray(m.messages) ? m.messages : []; renderChat();
-    for (const p of m.peers) members.set(p.id, p.name);
+    for (const p of m.peers) { members.set(p.id, p.name); if (p.accountId) memberAccounts.set(p.id, p.accountId); }
     for (const s of m.streams) streams.set(s.id, s.streamId);
     busy = false; render(); status('Você está na sala. Assista ou compartilhe sua tela.');
   }
   if (m.type === 'peer-joined' && room) {
-    members.set(m.id, m.name); render();
+    members.set(m.id, m.name); if (m.accountId) memberAccounts.set(m.id, m.accountId); render();
     const streamId = streams.get(room.id);
     if (streamId) await publishTo(m.id, streamId);
   }
-  if (m.type === 'peer-left') { members.delete(m.id); transport.remove(m.id); render(); }
+  if (m.type === 'peer-left') { members.delete(m.id); memberAccounts.delete(m.id); transport.remove(m.id); render(); }
   if (m.type === 'chat') { chatMessages.push(m); if (chatMessages.length > 100) chatMessages.shift(); renderChat(); }
   if (m.type === 'stream-started' && room) {
     streams.set(m.from, m.streamId); render();

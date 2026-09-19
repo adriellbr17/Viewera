@@ -49,8 +49,8 @@ export function createServer({ origins = ['http://127.0.0.1:8787', 'http://local
       }
       if (path === '/api/logout') { const sid = sidOf(req); if (sid) await accounts.end(sid); return json(res, 200, { ok: true }, { 'Set-Cookie': 'sid=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0' }); }
       if (!user) return json(res, 401, { error: 'Faça login.' });
-      if (path === '/api/groups') { const group = await accounts.createGroup(user, input.name); return json(res, 200, { group: { id: group.id, name: group.name, invite: group.invite, members: 1 } }); }
-      if (path === '/api/groups/join') { const group = await accounts.joinGroup(user, input.invite); return json(res, 200, { group: { id: group.id, name: group.name, invite: group.invite, members: group.members.length } }); }
+      if (path === '/api/groups') { const group = await accounts.createGroup(user, input.name); return json(res, 200, { group: accounts.viewGroup(group) }); }
+      if (path === '/api/groups/join') { const group = await accounts.joinGroup(user, input.invite); return json(res, 200, { group: accounts.viewGroup(group) }); }
       return json(res, 404, { error: 'Não encontrado.' });
     } catch (e) { return json(res, 400, { error: e.message }); }
   }
@@ -142,8 +142,8 @@ export function createServer({ origins = ['http://127.0.0.1:8787', 'http://local
           }
           ws.room = code; ws.name = accounts ? ws.user.name : m.name.trim(); room.members.set(ws.id, ws);
           send(ws, { type: 'joined', id: ws.id, code, iceServers, iceTransportPolicy: relayOnly ? 'relay' : 'all', messages: room.messages || [], streams: [...room.streams].map(([id, streamId]) => ({ id, streamId })),
-            peers: [...room.members.values()].map(p => ({ id: p.id, name: p.name })) });
-          broadcast(room, { type: 'peer-joined', id: ws.id, name: ws.name }, ws.id);
+            peers: [...room.members.values()].map(p => ({ id: p.id, name: p.name, accountId: p.user?.id })) });
+          broadcast(room, { type: 'peer-joined', id: ws.id, name: ws.name, accountId: ws.user?.id }, ws.id);
           return;
         }
         const room = rooms.get(ws.room);

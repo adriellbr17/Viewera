@@ -12,7 +12,8 @@ export async function createAccounts(file) {
   const save = async () => { if (file) await writeFile(file, JSON.stringify(data, null, 2)); };
   const sessionHash = sid => createHash('sha256').update(String(sid || '')).digest('hex');
   const userFor = sid => { const session = data.sessions.find(s => s.hash === sessionHash(sid) && s.expires > Date.now()); return data.users.find(u => u.id === session?.userId); };
-  const groupsFor = user => data.groups.filter(g => g.members.includes(user.id)).map(g => ({ id: g.id, name: g.name, invite: g.invite, members: g.members.length }));
+  const viewGroup = group => ({ id: group.id, name: group.name, invite: group.invite, members: group.members.length, people: group.members.map(id => { const user = data.users.find(u => u.id === id); return { id, name: user?.name || 'Membro' }; }) });
+  const groupsFor = user => data.groups.filter(g => g.members.includes(user.id)).map(viewGroup);
   async function register(name, email, password) {
     name = clean(name); email = clean(email).toLowerCase();
     if (name.length < 2 || name.length > 24) throw Error('Nome deve ter entre 2 e 24 caracteres.');
@@ -42,6 +43,6 @@ export async function createAccounts(file) {
     if (!group.members.includes(user.id)) { if (group.members.length >= 20) throw Error('Grupo cheio (máximo 20 membros).'); group.members.push(user.id); await save(); }
     return group;
   }
-  return { userFor, groupsFor, register, login, start, end, createGroup, joinGroup, group: id => data.groups.find(g => g.id === id) };
+  return { userFor, groupsFor, viewGroup, register, login, start, end, createGroup, joinGroup, group: id => data.groups.find(g => g.id === id) };
 }
 
