@@ -33,10 +33,13 @@ const transport = new PeerTransport((to, data, streamId) => send({ type: 'signal
   (id, state) => status(`${members.get(id) || 'Amigo'}: ${({connected:'conectado',connecting:'conectando',disconnected:'conexão interrompida',failed:'conexão falhou — entre novamente; outra rede pode exigir TURN'})[state] || state}`));
 function render() {
   $('room').hidden = !room;
-  $('room-title').textContent = room ? `Sala ${room.code}` : invitedRoom ? 'Entrando na sala…' : 'Entrar no grupo';
+  $('join-box').hidden = !!room;
+  $('room-title').textContent = room ? `Sala ${room.code}` : invitedRoom ? 'Entrando na sala…' : 'Sala principal';
+  $('profile-name').textContent = $('name').value.trim() || 'Você';
   $('count').textContent = `${members.size} / 10`;
   $('stream-count').textContent = `${streams.size} / 3 transmitindo`;
   $('empty').hidden = videos.size > 0;
+  $('share-big').disabled = !room || streams.size >= 3 || streams.has(room?.id) || !!local || busy;
   $('create').disabled = $('join').disabled = !!room || busy;
   $('name').disabled = $('server').disabled = $('access-key').disabled = !!room || busy;
   $('share').disabled = !room || streams.size >= 3 || streams.has(room?.id) || !!local || busy;
@@ -146,6 +149,7 @@ $('copy').onclick = async () => {
   try { await navigator.clipboard.writeText(link); status('Link de convite copiado. Envie aos seus amigos.'); }
   catch { status(`Envie este link: ${link}`); }
 };
+$('share-big').onclick = () => $('share').click();
 $('share').onclick = async () => {
   if (!room || streams.size >= 3 || streams.has(room?.id) || local || busy) return;
   busy = true; render(); const current = ++generation;

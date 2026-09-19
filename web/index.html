@@ -1,25 +1,31 @@
 <!doctype html>
 <html lang="pt-BR">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Amigos Tela</title><link rel="stylesheet" href="/style.css"></head>
-<body>
-  <header><a href="/" class="brand">▣ amigos<span>tela</span></a><span class="badge">AO VIVO • P2P</span></header>
-  <main>
-    <aside class="panel" aria-label="Sala">
-      <div class="panel-top"><h2 id="room-title">Entrar no grupo</h2><span id="count">0 / 10</span></div>
-      <label for="name">Como seus amigos te chamam?</label><input id="name" value="Amigo" maxlength="32" autocomplete="nickname">
-      <label for="access-key">Chave do grupo (se configurada)</label><input id="access-key" type="password" maxlength="256" autocomplete="off">
-      <details id="connection-settings"><summary>Configuração da conexão</summary><label for="server">Servidor de salas</label><input id="server" value="ws://127.0.0.1:8787/signal" spellcheck="false"></details>
-      <div class="actions"><button id="create">Criar sala e gerar link</button><input id="code" type="hidden"><button id="join" class="secondary" hidden>Entrar</button></div>
-      <div id="room" hidden><button id="copy">Copiar convite</button><h3>Na sala</h3><ul id="peers"></ul><button id="leave" class="secondary">Sair da sala</button></div>
-      <p id="status" role="status" aria-live="polite">Crie uma sala. Seus amigos entrarão pelo link.</p>
-    </aside>
-    <section class="stage">
-      <div class="panel-top"><h2>Telas ao vivo</h2><span id="stream-count">0 / 3 transmitindo</span><span class="badge">1080p · 60 FPS</span></div>
-      <div id="videos" aria-label="Transmissões da sala"></div><p id="empty">Ninguém está transmitindo ainda.<br><small>Você pode só assistir ou compartilhar sua tela. Até 3 pessoas transmitem ao mesmo tempo.</small></p>
-      <div class="controls"><label><input type="checkbox" id="audio"> Incluir áudio do sistema</label><label>Bitrate por amigo <select id="bitrate"><option value="4">4 Mbps</option><option value="8" selected>8 Mbps</option><option value="12">12 Mbps</option></select></label><button id="share" disabled>Compartilhar tela / janela</button><button id="stop" class="secondary" disabled>Parar minha transmissão</button></div>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Amigos Tela</title><link rel="stylesheet" href="/style.css"></head>
+<body><div class="app">
+  <aside class="servers" aria-label="Comunidades"><a href="/" class="logo">A</a><div class="divider"></div><button class="server active">AM</button><button class="server">JG</button><button class="server-add">+</button></aside>
+  <aside class="channels-pane">
+    <div class="server-header"><strong>Amigos Tela</strong><span>⌄</span></div>
+    <div class="channel-scroll">
+      <div class="section">Canais</div><button class="channel"># geral</button>
+      <div class="section">Voz e tela</div><button class="channel active">◉ Sala principal</button>
+      <div class="join-box" id="join-box">
+        <label for="name">Seu nome</label><input id="name" value="Amigo" maxlength="32" autocomplete="nickname">
+        <label for="access-key">Chave do grupo</label><input id="access-key" type="password" maxlength="256" autocomplete="off" placeholder="Opcional">
+        <details id="connection-settings"><summary>Servidor</summary><input id="server" value="ws://127.0.0.1:8787/signal" spellcheck="false"></details>
+        <button id="create" class="btn primary">Criar sala e link</button><input id="code" type="hidden"><button id="join" hidden>Entrar</button>
+      </div>
+      <div id="room" hidden><button id="copy" class="btn primary wide">Convidar amigos</button><button id="leave" class="btn danger wide">Sair da sala</button></div>
+    </div>
+    <div class="profile"><div class="avatar online">EU</div><div class="profile-text"><b id="profile-name">Você</b><span id="status" role="status" aria-live="polite">Crie uma sala para começar.</span></div></div>
+  </aside>
+  <main class="main">
+    <header class="topbar"><div class="room-meta"><div class="room-icon">🔊</div><div><h1 id="room-title">Sala principal</h1><p><span id="count">0 / 10</span> pessoas · <span id="stream-count">0 / 3 transmitindo</span></p></div></div><div class="quality">1080p · 60 FPS</div></header>
+    <div class="content">
+      <section class="stage"><div id="videos" aria-label="Transmissões da sala"></div><div id="empty" class="placeholder"><div class="placeholder-icon">▣</div><h2>Ninguém está transmitindo</h2><p>Entre na sala para assistir ou compartilhar uma tela, janela ou jogo.</p><button id="share-big" class="btn primary" disabled>Compartilhar tela</button></div></section>
+      <div class="controls"><label class="control audio-control"><input type="checkbox" id="audio"><span>🔊 Áudio do sistema</span></label><label class="bitrate">Qualidade <select id="bitrate"><option value="4">4 Mbps</option><option value="8" selected>8 Mbps</option><option value="12">12 Mbps</option></select></label><button id="share" class="control share" disabled>▣ <span>Compartilhar</span></button><button id="stop" class="control end" disabled>■ Parar</button></div>
       <p id="stats">Qualidade e áudio dependem do dispositivo e da conexão.</p>
-    </section>
-    <details class="advanced"><summary>Opções técnicas</summary><p>Este teste WebRTC usa a captura do navegador. O módulo Rust testa Windows Graphics Capture separadamente.</p><button id="probe" class="secondary">Testar captura WGC (app Windows)</button><p id="native-status" role="status"></p></details>
-  </main><footer>Sem conta. Sem feed. Só a sua turma. <span>Protótipo · v0.2</span></footer>
-  <script type="module" src="/app.js"></script>
-</body></html>
+      <details class="advanced"><summary>Opções técnicas</summary><button id="probe" class="btn">Testar captura WGC</button><p id="native-status" role="status"></p></details>
+    </div>
+  </main>
+  <aside class="members-pane"><div class="members-title">Participantes — até 10</div><ul id="peers"></ul><div class="tech-note">Até 3 pessoas podem transmitir ao mesmo tempo. O link entra automaticamente, sem código.</div></aside>
+</div><script type="module" src="/app.js"></script></body></html>
